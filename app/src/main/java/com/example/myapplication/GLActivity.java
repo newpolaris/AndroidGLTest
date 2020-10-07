@@ -1,8 +1,10 @@
 package com.example.myapplication;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Bundle;
+import android.view.SurfaceHolder;
 
 public class GLActivity extends AppCompatActivity {
 
@@ -15,13 +17,15 @@ public class GLActivity extends AppCompatActivity {
         setContentView(mView);
     }
 
-    @Override protected void onPause() {
+    @Override
+    protected void onPause() {
         super.onPause();
-        mView.onPause();
+
     }
 
-    @Override protected void onResume() {
+    @Override
+    protected void onResume() {
         super.onResume();
-        mView.onResume();
+
     }
 }
