@@ -39,8 +39,10 @@ public class GLView extends GLSurfaceView {
 
         @Override
         public EGLContext createContext(EGL10 egl10, EGLDisplay eglDisplay, EGLConfig eglConfig) {
-            Log.w(TAG, "creating OpenGL ES 2.0 context");
+            Log.w(TAG, "creating OpenGL ES 3.0 context");
             checkEglError("Before eglCreateContext", egl10);
+            // TODO: add fallback to ES 2.0
+            // https://github.com/google/grafika/blob/master/app/src/main/java/com/android/grafika/gles/EglCore.java
             int[] attrib_list = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL10.EGL_NONE };
             EGLContext context = egl10.eglCreateContext(eglDisplay, eglConfig, EGL10.EGL_NO_CONTEXT, attrib_list);
             checkEglError("After eglCreateContext", egl10);
@@ -257,11 +259,12 @@ public class GLView extends GLSurfaceView {
 
         @Override
         public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+            GLJNILib.init();
         }
 
         @Override
         public void onSurfaceChanged(GL10 gl10, int width, int height) {
-            GLJNILib.init(width, height);
+            GLJNILib.resize(width, height);
         }
     }
 }

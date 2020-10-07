@@ -2,9 +2,13 @@
 #include <jni.h>
 #include <android/log.h>
 
+#include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <malloc.h>
+#include <string.h>
+#include <time.h>
+#include <stdint.h>
 
 #define  LOG_TAG    "libgl2jni"
 #define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
@@ -96,63 +100,151 @@ GLuint createProgram(const char* pVertexSource, const char* pFragmentSource) {
     return program;
 }
 
-GLuint gProgram;
-GLint gvPositionHandle;
+struct RendererES2
+{
+    RendererES2();
+    virtual ~RendererES2();
 
-bool setupGraphics(int w, int h) {
-    printGLString("Version", GL_VERSION);
-    printGLString("Vendor", GL_VENDOR);
-    printGLString("Renderer", GL_RENDERER);
-    printGLString("Extensions", GL_EXTENSIONS);
+    bool init();
+    void resize(int w, int h);
+    void render();
 
-    LOGI("setupGraphics(%d, %d)", w, h);
-    gProgram = createProgram(gVertexShader, gFragmentShader);
-    if (!gProgram) {
+private:
+
+    void step();
+    void draw();
+
+    EGLContext mEglContext;
+    GLuint mProgram;
+    GLint mPositionHandle;
+
+    float mGray;
+    uint64_t mLastFrameNs;
+};
+
+RendererES2::RendererES2() :
+        mEglContext(eglGetCurrentContext()),
+        mProgram(0),
+        mPositionHandle(0),
+        mGray(0.f),
+        mLastFrameNs(0)
+{
+}
+
+RendererES2::~RendererES2() {
+    // it's due to GLSurfaceView's implementation
+
+    /* The destructor may be called after the context has already been
+     * destroyed, in which case our objects have already been destroyed.
+     *
+     * If the context exists, it must be current. This only happens when we're
+     * cleaning up after a failed init().
+     */
+    if (eglGetCurrentContext() != mEglContext)
+        return;
+    glDeleteProgram(mProgram);
+    mProgram = 0;
+    mPositionHandle = 0;
+}
+
+bool RendererES2::init() {
+    mProgram = createProgram(gVertexShader, gFragmentShader);
+    if (!mProgram) {
         LOGE("Could not create program.");
         return false;
     }
-    gvPositionHandle = glGetAttribLocation(gProgram, "vPosition");
+    mPositionHandle = glGetAttribLocation(mProgram, "vPosition");
     checkGlError("glGetAttribLocation");
-    LOGI("glGetAttribLocation(\"vPosition\") = %d\n",
-         gvPositionHandle);
+    LOGI("glGetAttribLocation(\"vPosition\") = %d\n", mPositionHandle);
 
-    glViewport(0, 0, w, h);
-    checkGlError("glViewport");
     return true;
 }
 
-const GLfloat gTriangleVertices[] = { 0.0f, 0.5f, -0.5f, -0.5f,
-                                      0.5f, -0.5f };
+void RendererES2::step()
+{
+    timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    auto nowNs = now.tv_sec*1000000000ull + now.tv_nsec;
 
-
-void renderFrame() {
-    static float gray;
-    gray += 0.01f;
-    if (gray > 1.0f) {
-        gray = 0.0f;
+    if (mLastFrameNs > 0) {
+        float dt = float(nowNs - mLastFrameNs) * 0.000000001f;
+        mGray += dt;
+        if (mGray > 1.0f) {
+            mGray = 0.0f;
+        }
     }
-    glClearColor(gray, gray, gray, 1.0f);
+    mLastFrameNs = nowNs;
+}
+void RendererES2::render()
+{
+    step();
+
+    glClearColor(mGray, mGray, mGray, 0.8f);
     checkGlError("glClearColor");
     glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     checkGlError("glClear");
+    draw();
+    checkGlError("Renderer::render");
+}
 
-    glUseProgram(gProgram);
+void RendererES2::draw() {
+    const GLfloat triangleVertices[] = { 0.0f, 0.5f, -0.5f, -0.5f,
+                                          0.5f, -0.5f };
+
+    glUseProgram(mProgram);
     checkGlError("glUseProgram");
 
-    glVertexAttribPointer(gvPositionHandle, 2, GL_FLOAT, GL_FALSE, 0, gTriangleVertices);
+    glVertexAttribPointer(mPositionHandle, 2, GL_FLOAT, GL_FALSE, 0, triangleVertices);
     checkGlError("glVertexAttribPointer");
-    glEnableVertexAttribArray(gvPositionHandle);
+    glEnableVertexAttribArray(mPositionHandle);
     checkGlError("glEnableVertexAttribArray");
     glDrawArrays(GL_TRIANGLES, 0, 3);
     checkGlError("glDrawArrays");
 }
 
+void RendererES2::resize(int w, int h)
+{
+    glViewport(0, 0, w, h);
+    checkGlError("glViewport");
+}
+
+static RendererES2* g_renderer = nullptr;
+
+RendererES2* createES2Renderer() {
+    RendererES2* renderer = new RendererES2;
+    if (!renderer->init()) {
+        delete renderer;
+        return nullptr;
+    }
+    return renderer;
+}
+
 extern "C"
-JNIEXPORT void JNICALL Java_com_example_myapplication_GLJNILib_init(JNIEnv *env, jclass clazz, jint width, jint height) {
-    setupGraphics(width, height);
+JNIEXPORT void JNICALL Java_com_example_myapplication_GLJNILib_init(JNIEnv *env, jclass clazz) {
+    if (g_renderer) {
+        delete g_renderer;
+        g_renderer = nullptr;
+    }
+
+    printGLString("Version", GL_VERSION);
+    printGLString("Vendor", GL_VENDOR);
+    printGLString("Renderer", GL_RENDERER);
+    printGLString("Extensions", GL_EXTENSIONS);
+
+    g_renderer = createES2Renderer();
 }
 
 extern "C"
 JNIEXPORT void JNICALL Java_com_example_myapplication_GLJNILib_step(JNIEnv *env, jclass clazz) {
-    renderFrame();
+    if (g_renderer) {
+        g_renderer->render();
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_example_myapplication_GLJNILib_resize(JNIEnv *env, jclass clazz, jint width, jint height) {
+    if (g_renderer)
+        g_renderer->resize(width, height);
+    LOGI("init(%d, %d)", width, height);
 }
