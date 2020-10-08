@@ -4,7 +4,6 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Bundle;
-import android.view.SurfaceHolder;
 
 public class GLActivity extends AppCompatActivity {
 
@@ -20,12 +19,24 @@ public class GLActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-
+        GLJNILib.nativeOnPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        GLJNILib.nativeOnResume();
+    }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+        GLJNILib.nativeOnStart();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        GLJNILib.nativeOnStop();
     }
 }

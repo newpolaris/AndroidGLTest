@@ -3,6 +3,7 @@ package com.example.myapplication;
 import android.content.Context;
 import android.graphics.PixelFormat;
 import android.util.Log;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -27,16 +28,17 @@ public class GLView extends SurfaceView implements SurfaceHolder.Callback {
 
     @Override
     public void surfaceCreated(@NonNull SurfaceHolder surfaceHolder) {
-
+        GLJNILib.nativeSurfaceCreated(surfaceHolder.getSurface());
     }
 
     @Override
-    public void surfaceChanged(@NonNull SurfaceHolder surfaceHolder, int i, int i1, int i2) {
-
+    public void surfaceChanged(@NonNull SurfaceHolder surfaceHolder, int format, int w, int h) {
+        GLJNILib.nativeSurfaceChanged(surfaceHolder.getSurface(), format, w, h);
     }
 
     @Override
     public void surfaceDestroyed(@NonNull SurfaceHolder surfaceHolder) {
-
+        Surface surface = surfaceHolder.getSurface();
+        GLJNILib.nativeSurfaceDestroyed();
     }
 }
